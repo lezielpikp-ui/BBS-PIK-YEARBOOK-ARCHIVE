@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" width="100%" height="100%">
+  <defs>
+    <!-- Clip path to keep everything within the shield boundary -->
+    <clipPath id="shieldInnerClip">
+      <path d="M 170 120 L 630 120 L 630 460 C 630 600, 480 670, 400 700 C 320 670, 170 600, 170 460 Z" />
+    </clipPath>
+  </defs>
+
+  <!-- Group clipped to shield interior -->
+  <g clip-path="url(#shieldInnerClip)">
+    <!-- Base Background: 4 Quadrants -->
+    <!-- Top-Left: Turquoise -->
+    <rect x="170" y="120" width="230" height="260" fill="#189e9d" />
+    <!-- Top-Right: White -->
+    <rect x="400" y="120" width="230" height="260" fill="#ffffff" />
+    <!-- Bottom-Left: White -->
+    <rect x="170" y="380" width="230" height="340" fill="#ffffff" />
+    <!-- Bottom-Right: Turquoise -->
+    <rect x="400" y="380" width="230" height="340" fill="#189e9d" />
+
+    <!-- Dark Navy Cross -->
+    <!-- Horizontal Cross Bar -->
+    <rect x="170" y="278" width="460" height="105" fill="#051c3f" />
+    <!-- Vertical Cross Bar -->
+    <rect x="348" y="120" width="104" height="600" fill="#051c3f" />
+
+    <!-- "BBS" Serif Letters across the bottom -->
+    <!-- First 'B' (Navy Blue) -->
+    <text x="250" y="590" font-family="'Playfair Display', 'Times New Roman', Georgia, serif" font-size="160" font-weight="900" text-anchor="middle" fill="#051c3f" letter-spacing="-2">B</text>
+
+    <!-- Center 'B' (Pure White) positioned on vertical navy arm -->
+    <text x="400" y="590" font-family="'Playfair Display', 'Times New Roman', Georgia, serif" font-size="160" font-weight="900" text-anchor="middle" fill="#ffffff" letter-spacing="-2">B</text>
+
+    <!-- 'S' (Navy Blue) positioned on turquoise quadrant -->
+    <text x="506" y="590" font-family="'Playfair Display', 'Times New Roman', Georgia, serif" font-size="160" font-weight="900" text-anchor="middle" fill="#051c3f" letter-spacing="-2">S</text>
+
+    <!-- Open Book at Cross Center -->
+    <!-- Dark Navy Outline / Book Backing -->
+    <path d="M 397 254 L 270 218 L 270 398 L 397 426 L 403 426 L 530 398 L 530 218 L 403 254 Z" fill="#051c3f" />
+
+    <!-- Left Page (White) -->
+    <path d="M 394 262 L 282 228 L 282 388 L 394 416 Z" fill="#ffffff" />
+    <!-- Right Page (White) -->
+    <path d="M 406 262 L 518 228 L 518 388 L 406 416 Z" fill="#ffffff" />
+
+    <!-- Center Spine Line -->
+    <line x1="400" y1="260" x2="400" y2="422" stroke="#051c3f" stroke-width="4" stroke-linecap="round" />
+
+    <!-- Chinese Characters on Pages: 培 (Left Page) and 民 (Right Page) -->
+    <text x="345" y="352" font-family="'Kaiti', 'STKaiti', 'KaiTi', 'Noto Serif SC', 'SimSun', 'Songti SC', serif" font-size="52" font-weight="bold" text-anchor="middle" fill="#051c3f">培</text>
+    <text x="455" y="352" font-family="'Kaiti', 'STKaiti', 'KaiTi', 'Noto Serif SC', 'SimSun', 'Songti SC', serif" font-size="52" font-weight="bold" text-anchor="middle" fill="#051c3f">民</text>
+  </g>
+
+  <!-- Outer Shield Turquoise Border -->
+  <path d="M 170 120 L 630 120 L 630 460 C 630 600, 480 670, 400 700 C 320 670, 170 600, 170 460 Z" fill="none" stroke="#189e9d" stroke-width="18" stroke-linejoin="round" />
+</svg>

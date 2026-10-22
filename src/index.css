@@ -1,0 +1,142 @@
+@import "tailwindcss";
+
+/* 3D Realistic Book Page Flipping Animation */
+@keyframes bookFlipForward {
+  0% {
+    transform: rotateY(0deg);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25);
+  }
+  35% {
+    transform: rotateY(-55deg) skewY(-0.8deg);
+    box-shadow: -15px 12px 35px rgba(0, 0, 0, 0.5);
+  }
+  65% {
+    transform: rotateY(-125deg) skewY(0.8deg);
+    box-shadow: -20px 12px 40px rgba(0, 0, 0, 0.45);
+  }
+  100% {
+    transform: rotateY(-180deg);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25);
+  }
+}
+
+@keyframes bookFlipBackward {
+  0% {
+    transform: rotateY(0deg);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25);
+  }
+  35% {
+    transform: rotateY(55deg) skewY(0.8deg);
+    box-shadow: 15px 12px 35px rgba(0, 0, 0, 0.5);
+  }
+  65% {
+    transform: rotateY(125deg) skewY(-0.8deg);
+    box-shadow: 20px 12px 40px rgba(0, 0, 0, 0.45);
+  }
+  100% {
+    transform: rotateY(180deg);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25);
+  }
+}
+
+@keyframes pageFoldSingleForward {
+  0% {
+    transform: perspective(1600px) rotateY(0deg);
+    opacity: 1;
+  }
+  50% {
+    transform: perspective(1600px) rotateY(-55deg) scale(0.96);
+    opacity: 0.85;
+  }
+  100% {
+    transform: perspective(1600px) rotateY(-105deg) scale(0.92);
+    opacity: 0;
+  }
+}
+
+@keyframes pageFoldSingleBackward {
+  0% {
+    transform: perspective(1600px) rotateY(105deg) scale(0.92);
+    opacity: 0;
+  }
+  50% {
+    transform: perspective(1600px) rotateY(55deg) scale(0.96);
+    opacity: 0.85;
+  }
+  100% {
+    transform: perspective(1600px) rotateY(0deg);
+    opacity: 1;
+  }
+}
+
+@keyframes shadowSweepLeft {
+  0% {
+    opacity: 0;
+  }
+  45% {
+    opacity: 0.45;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes shadowSweepRight {
+  0% {
+    opacity: 0;
+  }
+  45% {
+    opacity: 0.45;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.animate-book-flip-forward {
+  animation: bookFlipForward 520ms cubic-bezier(0.25, 1, 0.5, 1) forwards;
+  transform-style: preserve-3d;
+  transform-origin: left center;
+  will-change: transform, box-shadow;
+}
+
+.animate-book-flip-backward {
+  animation: bookFlipBackward 520ms cubic-bezier(0.25, 1, 0.5, 1) forwards;
+  transform-style: preserve-3d;
+  transform-origin: right center;
+  will-change: transform, box-shadow;
+}
+
+.animate-single-fold-forward {
+  animation: pageFoldSingleForward 450ms cubic-bezier(0.25, 1, 0.5, 1) forwards;
+  transform-origin: left center;
+  will-change: transform, opacity;
+}
+
+.animate-single-fold-backward {
+  animation: pageFoldSingleBackward 450ms cubic-bezier(0.25, 1, 0.5, 1) forwards;
+  transform-origin: right center;
+  will-change: transform, opacity;
+}
+
+.animate-shadow-sweep-left {
+  animation: shadowSweepLeft 520ms ease-in-out forwards;
+}
+
+.animate-shadow-sweep-right {
+  animation: shadowSweepRight 520ms ease-in-out forwards;
+}
+
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  .animate-book-flip-forward,
+  .animate-book-flip-backward,
+  .animate-single-fold-forward,
+  .animate-single-fold-backward,
+  .animate-shadow-sweep-left,
+  .animate-shadow-sweep-right {
+    animation: none !important;
+    transform: none !important;
+  }
+}
+

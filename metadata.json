@@ -1,0 +1,8 @@
+{
+  "name": "Bina Bangsa School-Pantai Indah Kapuk - Yearbook Gallery",
+  "description": "Public digital gallery for Bina Bangsa School-Pantai Indah Kapuk yearbooks with search, filtering, in-browser reader, and secure admin management portal.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
