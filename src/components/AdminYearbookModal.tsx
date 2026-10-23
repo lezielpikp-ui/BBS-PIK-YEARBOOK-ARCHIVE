@@ -297,45 +297,54 @@ export const AdminYearbookModal: React.FC<AdminYearbookModalProps> = ({
     }
 
     try {
-      // Save full downloaded PDF to IndexedDB store with buffer detachment protection
-      await savePdfFile(currentRecordId, arrayBuffer.slice(0), file.name);
+      if (arrayBuffer && arrayBuffer.byteLength > 0) {
+        // Save full downloaded PDF to IndexedDB store with buffer detachment protection
+        await savePdfFile(currentRecordId, arrayBuffer.slice(0), file.name);
 
-      // Extract first page as high-res cover image and detect real page count
-      const extracted = await extractFirstPageAndMetadata(arrayBuffer.slice(0));
+        // Extract first page as high-res cover image and detect real page count
+        const extracted = await extractFirstPageAndMetadata(arrayBuffer.slice(0));
 
-      if (extracted.firstPageImageDataUrl) {
-        setFirstPageCoverUrl(extracted.firstPageImageDataUrl);
-        setCustomCoverUrl(extracted.firstPageImageDataUrl);
-        setCoverSource('firstPage');
+        if (extracted.firstPageImageDataUrl) {
+          setFirstPageCoverUrl(extracted.firstPageImageDataUrl);
+          setCustomCoverUrl(extracted.firstPageImageDataUrl);
+          setCoverSource('firstPage');
 
-        if (extracted.pageCount && extracted.pageCount > 0) {
-          setPageCount(extracted.pageCount);
+          if (extracted.pageCount && extracted.pageCount > 0) {
+            setPageCount(extracted.pageCount);
+          }
+
+          if (extracted.suggestedTitle && !title) {
+            setTitle(extracted.suggestedTitle);
+          }
+
+          setSuccessNotice(
+            `Yearbook imported from Google Drive! Cover automatically synced with Page 1 of "${file.name}" (${extracted.pageCount} pages detected).`
+          );
+        } else {
+          const fallbackCover = generateCoverSvgDataUrl(year || '2024–2025', title || file.name.replace(/\.[^/.]+$/, ''), themeColor);
+          setFirstPageCoverUrl(fallbackCover);
+          setCustomCoverUrl(fallbackCover);
+          setCoverSource('firstPage');
+          setSuccessNotice(`Yearbook "${file.name}" imported from Google Drive (${computedFileSize}). Cover synced.`);
         }
 
-        if (extracted.suggestedTitle && !title) {
-          setTitle(extracted.suggestedTitle);
+        if (arrayBuffer.byteLength <= 15 * 1024 * 1024) {
+          const blob = new Blob([arrayBuffer], { type: 'application/pdf' });
+          const reader = new FileReader();
+          reader.onload = () => {
+            setFileUrl(reader.result as string);
+          };
+          reader.readAsDataURL(blob);
+        } else {
+          setFileUrl('');
         }
-
-        setSuccessNotice(
-          `Yearbook imported from Google Drive! Cover automatically synced with Page 1 of "${file.name}" (${extracted.pageCount} pages detected).`
-        );
       } else {
+        // Direct link / file ID mode (file is streamed via Google Drive embedded viewer)
         const fallbackCover = generateCoverSvgDataUrl(year || '2024–2025', title || file.name.replace(/\.[^/.]+$/, ''), themeColor);
         setFirstPageCoverUrl(fallbackCover);
         setCustomCoverUrl(fallbackCover);
         setCoverSource('firstPage');
-        setSuccessNotice(`Yearbook "${file.name}" imported from Google Drive (${computedFileSize}). Cover synced.`);
-      }
-
-      if (arrayBuffer.byteLength <= 15 * 1024 * 1024) {
-        const blob = new Blob([arrayBuffer], { type: 'application/pdf' });
-        const reader = new FileReader();
-        reader.onload = () => {
-          setFileUrl(reader.result as string);
-        };
-        reader.readAsDataURL(blob);
-      } else {
-        setFileUrl('');
+        setSuccessNotice(`Google Drive yearbook linked: "${file.name}". Ready to view in app.`);
       }
     } catch (err) {
       console.warn('Google Drive PDF extraction notice:', err);

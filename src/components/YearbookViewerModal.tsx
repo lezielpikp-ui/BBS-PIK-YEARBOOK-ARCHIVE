@@ -164,23 +164,24 @@ export const YearbookViewerModal: React.FC<YearbookViewerModalProps> = ({
           {/* Action buttons */}
           <div className="flex items-center gap-1.5 sm:gap-2">
             {/* View Mode Toggle: Interactive Reader vs Google Drive Preview vs Raw PDF */}
-            <div className="hidden sm:flex bg-[#030d1d] p-0.5 rounded-lg border border-cyan-900 text-xs">
+            <div className="flex bg-[#030d1d] p-0.5 rounded-lg border border-cyan-900 text-xs">
               <button
                 onClick={() => setActiveTab('reader')}
-                className={`px-2.5 py-1 rounded-md font-bold transition-colors cursor-pointer flex items-center gap-1 ${
+                className={`px-2 sm:px-2.5 py-1 rounded-md font-bold transition-colors cursor-pointer flex items-center gap-1 ${
                   activeTab === 'reader'
                     ? 'bg-yellow-400 text-[#071630]'
                     : 'text-cyan-200 hover:text-white'
                 }`}
               >
                 <BookOpen className="w-3.5 h-3.5" />
-                <span>Album Reader</span>
+                <span className="hidden sm:inline">Album Reader</span>
+                <span className="sm:hidden">Reader</span>
               </button>
 
               {yearbook.driveFileId && (
                 <button
                   onClick={() => setActiveTab('drive')}
-                  className={`px-2.5 py-1 rounded-md font-bold transition-colors cursor-pointer flex items-center gap-1 ${
+                  className={`px-2 sm:px-2.5 py-1 rounded-md font-bold transition-colors cursor-pointer flex items-center gap-1 ${
                     activeTab === 'drive'
                       ? 'bg-cyan-400 text-[#071630]'
                       : 'text-cyan-200 hover:text-white'
@@ -195,20 +196,22 @@ export const YearbookViewerModal: React.FC<YearbookViewerModalProps> = ({
                     <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
                     <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
                   </svg>
-                  <span>Drive View</span>
+                  <span className="hidden sm:inline">Drive View</span>
+                  <span className="sm:hidden">Drive</span>
                 </button>
               )}
 
               <button
                 onClick={() => setActiveTab('pdf')}
-                className={`px-2.5 py-1 rounded-md font-bold transition-colors cursor-pointer flex items-center gap-1 ${
+                className={`px-2 sm:px-2.5 py-1 rounded-md font-bold transition-colors cursor-pointer flex items-center gap-1 ${
                   activeTab === 'pdf'
                     ? 'bg-cyan-400 text-[#071630]'
                     : 'text-cyan-200 hover:text-white'
                 }`}
               >
                 <FileText className="w-3.5 h-3.5" />
-                <span>Raw PDF</span>
+                <span className="hidden sm:inline">Raw PDF</span>
+                <span className="sm:hidden">PDF</span>
               </button>
             </div>
 
