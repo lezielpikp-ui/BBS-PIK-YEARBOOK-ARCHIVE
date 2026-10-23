@@ -224,13 +224,33 @@ export const PdfPageViewer: React.FC<PdfPageViewerProps> = ({
       try {
         let pdfData: ArrayBuffer | Uint8Array | null = null;
 
-        // A. Check IndexedDB/memory store for admin-uploaded PDF
+        // A. Check IndexedDB/memory store for admin-uploaded PDF or cached Google Drive PDF
         const stored = await getPdfFile(yearbook.id);
         if (stored && stored.byteLength > 0) {
           pdfData = stored;
           setSourceType('uploaded');
-        } else if (yearbook.fileUrl && yearbook.fileUrl.startsWith('data:application/pdf')) {
-          // B. Decode data URL
+        } else if (yearbook.driveFileId) {
+          // B. Attempt to fetch directly from Google Drive API if token available
+          try {
+            const { fetchDriveFileContent, getGoogleAccessToken } = await import('../services/googleDriveService');
+            const token = await getGoogleAccessToken();
+            if (token) {
+              const driveBuf = await fetchDriveFileContent(yearbook.driveFileId);
+              if (driveBuf && driveBuf.byteLength > 0) {
+                pdfData = driveBuf;
+                // Cache for smooth subsequent viewings
+                const { savePdfFile } = await import('../services/pdfStore');
+                await savePdfFile(yearbook.id, driveBuf.slice(0), yearbook.fileName);
+                setSourceType('uploaded');
+              }
+            }
+          } catch (driveErr) {
+            console.warn('Could not load directly from Google Drive API in viewer:', driveErr);
+          }
+        }
+
+        if (!pdfData && yearbook.fileUrl && yearbook.fileUrl.startsWith('data:application/pdf')) {
+          // C. Decode data URL
           const base64 = yearbook.fileUrl.split(',')[1];
           if (base64) {
             const binaryString = window.atob(base64);

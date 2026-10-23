@@ -28,6 +28,8 @@ import { generateCoverSvgDataUrl } from '../utils/coverGenerator';
 import { extractFirstPageAndMetadata } from '../utils/pdfExtractor';
 import { getActiveAdminSession } from '../services/authService';
 import { savePdfFile } from '../services/pdfStore';
+import { GoogleDrivePickerModal } from './GoogleDrivePickerModal';
+import { DriveFileItem } from '../services/googleDriveService';
 
 interface AdminYearbookModalProps {
   isOpen: boolean;
@@ -81,6 +83,14 @@ export const AdminYearbookModal: React.FC<AdminYearbookModalProps> = ({
   const [dateUploaded, setDateUploaded] = useState('');
   const [isFeatured, setIsFeatured] = useState(false);
 
+  // Google Drive Source State
+  const [driveFileId, setDriveFileId] = useState('');
+  const [driveWebViewLink, setDriveWebViewLink] = useState('');
+  const [driveWebContentLink, setDriveWebContentLink] = useState('');
+  const [driveThumbnailLink, setDriveThumbnailLink] = useState('');
+  const [sourceType, setSourceType] = useState<'google_drive' | 'uploaded' | 'curated'>('uploaded');
+  const [isDrivePickerOpen, setIsDrivePickerOpen] = useState(false);
+
   // Status & Feedback
   const [error, setError] = useState<string | null>(null);
   const [successNotice, setSuccessNotice] = useState<string | null>(null);
@@ -109,6 +119,11 @@ export const AdminYearbookModal: React.FC<AdminYearbookModalProps> = ({
       setDateUploaded(yearbookToEdit.dateUploaded ? yearbookToEdit.dateUploaded.slice(0, 10) : new Date().toISOString().slice(0, 10));
       setIsFeatured(!!yearbookToEdit.featured);
       setCurrentRecordId(yearbookToEdit.id);
+      setDriveFileId(yearbookToEdit.driveFileId || '');
+      setDriveWebViewLink(yearbookToEdit.driveWebViewLink || '');
+      setDriveWebContentLink(yearbookToEdit.driveWebContentLink || '');
+      setDriveThumbnailLink(yearbookToEdit.driveThumbnailLink || '');
+      setSourceType(yearbookToEdit.sourceType || (yearbookToEdit.driveFileId ? 'google_drive' : 'uploaded'));
     } else {
       // Default New Entry
       const currentYear = new Date().getFullYear();
@@ -130,6 +145,11 @@ export const AdminYearbookModal: React.FC<AdminYearbookModalProps> = ({
       setDateUploaded(new Date().toISOString().slice(0, 10));
       setIsFeatured(false);
       setCurrentRecordId(`yb-bbs-${Date.now()}`);
+      setDriveFileId('');
+      setDriveWebViewLink('');
+      setDriveWebContentLink('');
+      setDriveThumbnailLink('');
+      setSourceType('uploaded');
     }
     setError(null);
     setSuccessNotice(null);
@@ -250,6 +270,85 @@ export const AdminYearbookModal: React.FC<AdminYearbookModalProps> = ({
     }
   };
 
+  // Handle Yearbook selection directly from Google Drive
+  const handleSelectDriveFile = async (file: DriveFileItem, arrayBuffer: ArrayBuffer) => {
+    setIsProcessingFile(true);
+    setError(null);
+    setSuccessNotice(null);
+
+    const computedFileName = file.name;
+    setFileName(computedFileName);
+    const sizeInMb = (arrayBuffer.byteLength / (1024 * 1024)).toFixed(1);
+    const computedFileSize = `${sizeInMb} MB`;
+    setFileSize(computedFileSize);
+    setFileSizeBytes(arrayBuffer.byteLength);
+
+    setDriveFileId(file.id);
+    setDriveWebViewLink(file.webViewLink || '');
+    setDriveWebContentLink(file.webContentLink || '');
+    setDriveThumbnailLink(file.thumbnailLink || '');
+    setSourceType('google_drive');
+
+    // Auto-detect academic year from filename if empty or default
+    const yearMatch = file.name.match(/20\d{2}[–\-_]20\d{2}|20\d{2}/);
+    if (yearMatch && (!year || year === '2024–2025')) {
+      const detectedYear = yearMatch[0].replace(/[-_]/, '–');
+      setYear(detectedYear);
+    }
+
+    try {
+      // Save full downloaded PDF to IndexedDB store with buffer detachment protection
+      await savePdfFile(currentRecordId, arrayBuffer.slice(0), file.name);
+
+      // Extract first page as high-res cover image and detect real page count
+      const extracted = await extractFirstPageAndMetadata(arrayBuffer.slice(0));
+
+      if (extracted.firstPageImageDataUrl) {
+        setFirstPageCoverUrl(extracted.firstPageImageDataUrl);
+        setCustomCoverUrl(extracted.firstPageImageDataUrl);
+        setCoverSource('firstPage');
+
+        if (extracted.pageCount && extracted.pageCount > 0) {
+          setPageCount(extracted.pageCount);
+        }
+
+        if (extracted.suggestedTitle && !title) {
+          setTitle(extracted.suggestedTitle);
+        }
+
+        setSuccessNotice(
+          `Yearbook imported from Google Drive! Cover automatically synced with Page 1 of "${file.name}" (${extracted.pageCount} pages detected).`
+        );
+      } else {
+        const fallbackCover = generateCoverSvgDataUrl(year || '2024–2025', title || file.name.replace(/\.[^/.]+$/, ''), themeColor);
+        setFirstPageCoverUrl(fallbackCover);
+        setCustomCoverUrl(fallbackCover);
+        setCoverSource('firstPage');
+        setSuccessNotice(`Yearbook "${file.name}" imported from Google Drive (${computedFileSize}). Cover synced.`);
+      }
+
+      if (arrayBuffer.byteLength <= 15 * 1024 * 1024) {
+        const blob = new Blob([arrayBuffer], { type: 'application/pdf' });
+        const reader = new FileReader();
+        reader.onload = () => {
+          setFileUrl(reader.result as string);
+        };
+        reader.readAsDataURL(blob);
+      } else {
+        setFileUrl('');
+      }
+    } catch (err) {
+      console.warn('Google Drive PDF extraction notice:', err);
+      const fallbackCover = generateCoverSvgDataUrl(year || '2024–2025', title || file.name.replace(/\.[^/.]+$/, ''), themeColor);
+      setFirstPageCoverUrl(fallbackCover);
+      setCustomCoverUrl(fallbackCover);
+      setCoverSource('firstPage');
+      setSuccessNotice(`Yearbook "${file.name}" imported from Google Drive. Cover synced.`);
+    } finally {
+      setIsProcessingFile(false);
+    }
+  };
+
   const handleMainFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -325,6 +424,12 @@ export const AdminYearbookModal: React.FC<AdminYearbookModalProps> = ({
       dateUploaded: dateUploaded ? `${dateUploaded}T10:00:00Z` : yearbookToEdit ? yearbookToEdit.dateUploaded : new Date().toISOString(),
       tags: tags.length > 0 ? tags : ['Cambridge A-Levels', 'Graduation', 'Sports', 'Chapel'],
       featured: isFeatured,
+      // Google Drive Fields
+      sourceType: driveFileId ? 'google_drive' : sourceType,
+      driveFileId: driveFileId || undefined,
+      driveWebViewLink: driveWebViewLink || undefined,
+      driveWebContentLink: driveWebContentLink || undefined,
+      driveThumbnailLink: driveThumbnailLink || undefined,
       samplePages: yearbookToEdit?.samplePages || [
         {
           pageNumber: 1,
@@ -523,59 +628,138 @@ export const AdminYearbookModal: React.FC<AdminYearbookModalProps> = ({
                   <span className="text-[10px] text-cyan-300/80 font-mono">Editable Specifications</span>
                 </div>
 
-                {/* Main PDF Upload / Dropzone */}
-                <div>
-                  <label className="block text-xs font-bold text-cyan-100 mb-1">
-                    Upload or Replace Document (PDF)
-                  </label>
-                  <div
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      setIsDragOver(true);
-                    }}
-                    onDragLeave={() => setIsDragOver(false)}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      setIsDragOver(false);
-                      const droppedFile = e.dataTransfer.files?.[0];
-                      if (droppedFile) {
-                        processPdfFile(droppedFile);
-                      }
-                    }}
-                    className={`relative border-2 border-dashed rounded-xl p-5 text-center transition-all bg-[#030d1d] cursor-pointer ${
-                      isDragOver
-                        ? 'border-yellow-400 bg-yellow-400/10 scale-[1.01]'
-                        : 'border-cyan-700/80 hover:border-yellow-400'
-                    }`}
-                  >
-                    <input
-                      type="file"
-                      accept=".pdf,application/pdf"
-                      onChange={handleMainFileUpload}
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                    />
-                    <div className="flex flex-col items-center justify-center pointer-events-none">
-                      <Upload className={`w-7 h-7 mb-1.5 transition-transform ${isDragOver ? 'text-white animate-bounce' : 'text-yellow-400'}`} />
-                      <span className="text-xs font-bold text-white">
-                        {fileName ? fileName : 'Choose or Drag & Drop PDF Document'}
-                      </span>
-                      <span className="text-[11px] text-cyan-300 mt-0.5">
-                        {fileName
-                          ? `${fileSize} • Uploaded (First page automatically synced with cover)`
-                          : 'Upload official Bina Bangsa School digital yearbook (.pdf, up to 300MB)'}
-                      </span>
-                      {firstPageCoverUrl && (
-                        <div className="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 text-[10px] font-bold">
-                          <Check className="w-3.5 h-3.5 text-yellow-400" />
-                          <span>Cover automatically synced with Page 1</span>
+                {/* Document Source Selection: Google Drive vs Local Upload */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-cyan-100 flex items-center gap-1.5">
+                      <span>Document Source (PDF)</span>
+                      <span className="text-yellow-400">*</span>
+                    </label>
+                    <span className="text-[10px] text-cyan-300/80 font-mono">
+                      {driveFileId ? 'Google Drive Source' : 'Local Archive'}
+                    </span>
+                  </div>
+
+                  {/* Primary Option: Google Drive Selection Card */}
+                  <div className="p-3.5 rounded-xl bg-[#030d1d] border border-cyan-800/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-inner">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-cyan-950/80 border border-cyan-500/40 flex items-center justify-center shrink-0">
+                        <svg className="w-6 h-6" viewBox="0 0 87.3 78" xmlns="http://www.w3.org/2000/svg">
+                          <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
+                          <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44c-.8 1.4-1.2 2.95-1.2 4.5h27.5z" fill="#00ac47"/>
+                          <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/>
+                          <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/>
+                          <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
+                          <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
+                        </svg>
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-white flex items-center gap-2">
+                          <span>Google Drive Yearbook Archive</span>
+                          <span className="px-1.5 py-0.2 rounded text-[10px] bg-yellow-400 text-[#071630] font-extrabold">
+                            Preferred Source
+                          </span>
                         </div>
+                        <p className="text-[11px] text-cyan-200/80">
+                          {driveFileId
+                            ? `Connected: ${fileName} (${fileSize})`
+                            : 'Select and synchronize directly from your school Google Drive.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setIsDrivePickerOpen(true)}
+                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl bg-yellow-400 hover:bg-yellow-300 text-[#071630] font-extrabold text-xs shadow-md transition-all cursor-pointer shrink-0"
+                    >
+                      <HardDrive className="w-3.5 h-3.5" />
+                      <span>{driveFileId ? 'Change Google Drive File' : 'Select from Google Drive'}</span>
+                    </button>
+                  </div>
+
+                  {/* Active Google Drive File Notification */}
+                  {driveFileId && (
+                    <div className="p-3 rounded-xl bg-cyan-950/60 border border-cyan-500/50 flex items-center justify-between gap-2 text-xs">
+                      <div className="flex items-center gap-2 truncate">
+                        <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                        <span className="text-cyan-200 truncate">
+                          Synced with Google Drive file: <strong className="text-white">{fileName}</strong>
+                        </span>
+                      </div>
+                      {driveWebViewLink && (
+                        <a
+                          href={driveWebViewLink}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-[11px] text-yellow-300 hover:text-yellow-200 underline shrink-0 font-medium"
+                        >
+                          View in Drive ↗
+                        </a>
                       )}
                     </div>
+                  )}
+
+                  {/* Secondary Option: Or Upload Local PDF */}
+                  <div className="relative">
+                    <div className="flex items-center gap-2 my-2">
+                      <div className="h-px bg-cyan-900/80 flex-1"></div>
+                      <span className="text-[10px] uppercase font-bold text-cyan-400 tracking-wider">
+                        Or Upload / Replace via Local File
+                      </span>
+                      <div className="h-px bg-cyan-900/80 flex-1"></div>
+                    </div>
+
+                    <div
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        setIsDragOver(true);
+                      }}
+                      onDragLeave={() => setIsDragOver(false)}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        setIsDragOver(false);
+                        const droppedFile = e.dataTransfer.files?.[0];
+                        if (droppedFile) {
+                          processPdfFile(droppedFile);
+                        }
+                      }}
+                      className={`relative border-2 border-dashed rounded-xl p-4 text-center transition-all bg-[#030d1d] cursor-pointer ${
+                        isDragOver
+                          ? 'border-yellow-400 bg-yellow-400/10 scale-[1.01]'
+                          : 'border-cyan-700/80 hover:border-yellow-400'
+                      }`}
+                    >
+                      <input
+                        type="file"
+                        accept=".pdf,application/pdf"
+                        onChange={handleMainFileUpload}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      />
+                      <div className="flex flex-col items-center justify-center pointer-events-none">
+                        <Upload className={`w-6 h-6 mb-1 transition-transform ${isDragOver ? 'text-white animate-bounce' : 'text-yellow-400'}`} />
+                        <span className="text-xs font-bold text-white">
+                          {fileName ? fileName : 'Browse Local PDF Document'}
+                        </span>
+                        <span className="text-[11px] text-cyan-300 mt-0.5">
+                          {fileName
+                            ? `${fileSize} • Uploaded (First page automatically synced with cover)`
+                            : 'Upload local digital yearbook PDF file (up to 300MB)'}
+                        </span>
+                        {firstPageCoverUrl && (
+                          <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 text-[10px] font-bold">
+                            <Check className="w-3.5 h-3.5 text-yellow-400" />
+                            <span>Cover automatically synced with Page 1</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
+
                   {isProcessingFile && (
                     <p className="text-[11px] text-yellow-400 animate-pulse font-medium mt-1.5 flex items-center gap-1.5">
                       <Sparkles className="w-3.5 h-3.5 animate-spin" />
-                      Rendering first page of PDF and detecting document metadata...
+                      Processing PDF document and detecting metadata...
                     </p>
                   )}
                 </div>
@@ -994,6 +1178,13 @@ export const AdminYearbookModal: React.FC<AdminYearbookModalProps> = ({
           </div>
         </form>
       </div>
+
+      {/* Google Drive File Picker Modal */}
+      <GoogleDrivePickerModal
+        isOpen={isDrivePickerOpen}
+        onClose={() => setIsDrivePickerOpen(false)}
+        onSelectDriveFile={handleSelectDriveFile}
+      />
     </div>
   );
 };

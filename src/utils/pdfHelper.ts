@@ -40,6 +40,34 @@ export async function downloadYearbookFile(yearbook: Yearbook): Promise<void> {
     return;
   }
 
+  // If sourced from Google Drive, download using Google Drive API or content link
+  if (yearbook.driveFileId) {
+    try {
+      const { fetchDriveFileContent, getGoogleAccessToken } = await import('../services/googleDriveService');
+      const token = await getGoogleAccessToken();
+      if (token) {
+        const buf = await fetchDriveFileContent(yearbook.driveFileId);
+        const blob = new Blob([buf], { type: 'application/pdf' });
+        const blobUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = yearbook.fileName || `BBS_PIK_Yearbook_${yearbook.year}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+        return;
+      }
+    } catch (e) {
+      console.warn('Could not fetch directly from Drive API:', e);
+    }
+
+    if (yearbook.driveWebContentLink) {
+      window.open(yearbook.driveWebContentLink, '_blank');
+      return;
+    }
+  }
+
   // Otherwise, construct a real valid PDF document Blob client-side
   const pdfBlob = generateYearbookPdfBlob(yearbook);
   const blobUrl = URL.createObjectURL(pdfBlob);

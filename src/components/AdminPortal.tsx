@@ -33,8 +33,19 @@ import {
 } from '../services/authService';
 import { AdminYearbookModal } from './AdminYearbookModal';
 import { AdminDeleteConfirmModal } from './AdminDeleteConfirmModal';
+import { GoogleDrivePickerModal } from './GoogleDrivePickerModal';
 import { BBSLogo } from './BBSLogo';
 import { generateCoverSvgDataUrl } from '../utils/coverGenerator';
+import {
+  DriveFileItem,
+  signInWithGoogle,
+  signOutGoogle,
+  getCurrentGoogleUser,
+  subscribeToGoogleAuth,
+} from '../services/googleDriveService';
+import { extractFirstPageAndMetadata } from '../utils/pdfExtractor';
+import { savePdfFile } from '../services/pdfStore';
+import { parseYearRange } from '../services/yearbookStorage';
 
 interface AdminPortalProps {
   adminUser: AdminUser | null;
@@ -71,6 +82,82 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [yearbookToEdit, setYearbookToEdit] = useState<Yearbook | null>(null);
   const [yearbookToDelete, setYearbookToDelete] = useState<Yearbook | null>(null);
+
+  // Google Drive Integration State
+  const [googleUser, setGoogleUser] = useState(() => getCurrentGoogleUser());
+  const [googleToken, setGoogleToken] = useState<string | null>(null);
+  const [isDrivePickerOpen, setIsDrivePickerOpen] = useState(false);
+  const [isConnectingDrive, setIsConnectingDrive] = useState(false);
+  const [driveNotice, setDriveNotice] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    const unsub = subscribeToGoogleAuth((user, token) => {
+      setGoogleUser(user);
+      setGoogleToken(token);
+    });
+    return () => unsub();
+  }, []);
+
+  const handleGoogleDriveSignIn = async () => {
+    setIsConnectingDrive(true);
+    setDriveNotice(null);
+    try {
+      const res = await signInWithGoogle();
+      setGoogleUser(res.user);
+      setGoogleToken(res.accessToken);
+      setDriveNotice(`Connected to Google Drive as ${res.user.email}`);
+    } catch (err: any) {
+      if (err.code !== 'auth/popup-closed-by-user') {
+        setDriveNotice(`Google Sign-In failed: ${err.message}`);
+      }
+    } finally {
+      setIsConnectingDrive(false);
+    }
+  };
+
+  const handleDirectDriveSelect = async (file: DriveFileItem, arrayBuffer: ArrayBuffer) => {
+    try {
+      const recordId = `yb-bbs-${Date.now()}`;
+      await savePdfFile(recordId, arrayBuffer.slice(0), file.name);
+
+      const extracted = await extractFirstPageAndMetadata(arrayBuffer.slice(0));
+      const yearMatch = file.name.match(/20\d{2}[–\-_]20\d{2}|20\d{2}/);
+      const currentYear = new Date().getFullYear();
+      const detectedYear = yearMatch ? yearMatch[0].replace(/[-_]/, '–') : `${currentYear - 1}–${currentYear}`;
+      const { startYear, endYear } = parseYearRange(detectedYear);
+
+      const sizeInMb = (arrayBuffer.byteLength / (1024 * 1024)).toFixed(1);
+      const computedTitle = extracted.suggestedTitle || file.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ');
+
+      const newYearbook: Yearbook = {
+        id: recordId,
+        year: detectedYear,
+        startYear,
+        endYear,
+        title: computedTitle,
+        description: `Official digital yearbook archive imported directly from Google Drive. Volume ${detectedYear}. Bina Bangsa School Pantai Indah Kapuk.`,
+        coverImageUrl: extracted.firstPageImageDataUrl || generateCoverSvgDataUrl(detectedYear, computedTitle, 'darkBlue'),
+        fileUrl: '',
+        fileName: file.name,
+        fileSize: `${sizeInMb} MB`,
+        fileSizeBytes: arrayBuffer.byteLength,
+        pageCount: extracted.pageCount || 180,
+        dateUploaded: new Date().toISOString(),
+        tags: ['Google Drive', 'Cambridge A-Levels', 'Graduation', 'BBS PIK'],
+        sourceType: 'google_drive',
+        driveFileId: file.id,
+        driveWebViewLink: file.webViewLink,
+        driveWebContentLink: file.webContentLink,
+        driveThumbnailLink: file.thumbnailLink,
+      };
+
+      onSaveYearbook(newYearbook);
+      setDriveNotice(`Successfully imported "${file.name}" from Google Drive into BBS PIK gallery!`);
+    } catch (err: any) {
+      console.error('Failed to import drive file:', err);
+      setDriveNotice(`Failed to import file: ${err.message}`);
+    }
+  };
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -270,6 +357,22 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         {/* Quick Top Actions */}
         <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
           <button
+            onClick={() => setIsDrivePickerOpen(true)}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#0b244d] hover:bg-cyan-800 text-white font-extrabold text-xs sm:text-sm rounded-xl border border-cyan-400/50 shadow-md transition-all cursor-pointer"
+            title="Browse and select yearbook from Google Drive"
+          >
+            <svg className="w-4 h-4 shrink-0" viewBox="0 0 87.3 78">
+              <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
+              <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44c-.8 1.4-1.2 2.95-1.2 4.5h27.5z" fill="#00ac47"/>
+              <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/>
+              <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/>
+              <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
+              <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
+            </svg>
+            <span>Import from Google Drive</span>
+          </button>
+
+          <button
             onClick={() => {
               setYearbookToEdit(null);
               setIsModalOpen(true);
@@ -337,6 +440,93 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
           <span className="text-[11px] text-cyan-200/80">Read-only public protection</span>
         </div>
       </div>
+
+      {/* Google Drive Integration Banner */}
+      <div className="bg-[#071630] border border-cyan-500/40 rounded-2xl p-4 sm:p-5 shadow-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          <div className="w-12 h-12 rounded-2xl bg-cyan-950/80 border border-cyan-400/50 flex items-center justify-center shrink-0">
+            <svg className="w-7 h-7" viewBox="0 0 87.3 78">
+              <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
+              <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44c-.8 1.4-1.2 2.95-1.2 4.5h27.5z" fill="#00ac47"/>
+              <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/>
+              <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/>
+              <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
+              <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
+            </svg>
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="font-serif font-bold text-white text-base sm:text-lg">
+                Google Drive Yearbook Integration
+              </h3>
+              {googleToken ? (
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Connected
+                </span>
+              ) : (
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-yellow-400/20 text-yellow-300 border border-yellow-400/40">
+                  Ready to Connect
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-cyan-200/80 mt-0.5 max-w-xl">
+              {googleUser ? (
+                <span>
+                  Connected as <strong className="text-white">{googleUser.displayName || googleUser.email}</strong> ({googleUser.email}). Yearbook files selected from Google Drive are automatically synced and viewable across mobile, tablet, and laptop.
+                </span>
+              ) : (
+                'Make Google Drive the source of yearbook files. Files uploaded from Google Drive are immediately available for reading and download.'
+              )}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2.5 shrink-0 w-full md:w-auto">
+          {googleToken ? (
+            <>
+              <button
+                type="button"
+                onClick={() => setIsDrivePickerOpen(true)}
+                className="flex-1 md:flex-initial inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-yellow-400 hover:bg-yellow-300 text-[#071630] font-extrabold text-xs rounded-xl shadow transition-all cursor-pointer"
+              >
+                <HardDrive className="w-4 h-4" />
+                <span>Browse Drive Files</span>
+              </button>
+              <button
+                type="button"
+                onClick={signOutGoogle}
+                className="px-3 py-2.5 text-xs text-cyan-300 hover:text-rose-300 border border-cyan-800 hover:border-rose-500/40 rounded-xl transition-colors cursor-pointer"
+                title="Disconnect Google Drive"
+              >
+                Disconnect
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={handleGoogleDriveSignIn}
+              disabled={isConnectingDrive}
+              className="w-full md:w-auto inline-flex items-center justify-center gap-2.5 px-4 py-2.5 bg-white hover:bg-slate-100 text-slate-800 font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-50"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 48 48">
+                <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+                <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+                <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+                <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+                <path fill="none" d="M0 0h48v48H0z" />
+              </svg>
+              <span>{isConnectingDrive ? 'Connecting...' : 'Sign in with Google'}</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {driveNotice && (
+        <div className="p-3.5 rounded-xl bg-cyan-950/80 border border-cyan-400 text-cyan-200 text-xs flex items-center justify-between gap-3">
+          <span>{driveNotice}</span>
+          <button onClick={() => setDriveNotice(null)} className="text-cyan-400 hover:text-white font-bold cursor-pointer">✕</button>
+        </div>
+      )}
 
       {/* Management Toolbar & Search */}
       <div className="bg-[#071630] border border-cyan-800 rounded-2xl p-4 sm:p-5 space-y-4">
@@ -448,10 +638,24 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 </div>
                 <div className="flex items-center justify-between text-[11px] text-cyan-200/80 pt-1 border-t border-cyan-950">
                   <span>{item.pageCount} certified pages</span>
-                  <span className="text-emerald-400 font-semibold flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                    Uploaded Document
-                  </span>
+                  {item.driveFileId ? (
+                    <span className="text-cyan-300 font-semibold flex items-center gap-1">
+                      <svg className="w-3 h-3" viewBox="0 0 87.3 78">
+                        <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
+                        <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44c-.8 1.4-1.2 2.95-1.2 4.5h27.5z" fill="#00ac47"/>
+                        <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/>
+                        <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/>
+                        <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
+                        <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
+                      </svg>
+                      Google Drive
+                    </span>
+                  ) : (
+                    <span className="text-emerald-400 font-semibold flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                      Uploaded Document
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -555,8 +759,21 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   {/* Document Info */}
                   <td className="px-4 py-3 whitespace-nowrap">
                     <div className="font-mono text-cyan-200">{item.fileName}</div>
-                    <div className="text-[11px] text-cyan-400/80 mt-0.5">
-                      {item.pageCount} pages • {item.fileSize}
+                    <div className="text-[11px] text-cyan-400/80 mt-0.5 flex items-center gap-2">
+                      <span>{item.pageCount} pages • {item.fileSize}</span>
+                      {item.driveFileId && (
+                        <span className="px-1.5 py-0.2 rounded text-[10px] bg-cyan-950 text-cyan-300 border border-cyan-700/60 font-semibold flex items-center gap-1">
+                          <svg className="w-2.5 h-2.5" viewBox="0 0 87.3 78">
+                            <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
+                            <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44c-.8 1.4-1.2 2.95-1.2 4.5h27.5z" fill="#00ac47"/>
+                            <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/>
+                            <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/>
+                            <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
+                            <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
+                          </svg>
+                          Drive
+                        </span>
+                      )}
                     </div>
                   </td>
 
@@ -568,6 +785,25 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   {/* Actions */}
                   <td className="px-4 py-3 whitespace-nowrap text-right">
                     <div className="flex items-center justify-end gap-1.5">
+                      {item.driveWebViewLink && (
+                        <a
+                          href={item.driveWebViewLink}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="p-1.5 rounded-lg text-cyan-300 hover:text-white hover:bg-[#0b244d] transition-colors cursor-pointer"
+                          title="Open Google Drive link"
+                        >
+                          <svg className="w-4 h-4" viewBox="0 0 87.3 78">
+                            <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
+                            <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44c-.8 1.4-1.2 2.95-1.2 4.5h27.5z" fill="#00ac47"/>
+                            <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/>
+                            <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/>
+                            <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
+                            <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
+                          </svg>
+                        </a>
+                      )}
+
                       <button
                         onClick={() => onPreviewYearbook(item)}
                         className="p-1.5 rounded-lg text-cyan-300 hover:text-white hover:bg-[#0b244d] transition-colors cursor-pointer"
@@ -636,6 +872,13 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
           onDeleteYearbook(id);
           setYearbookToDelete(null);
         }}
+      />
+
+      {/* Direct Google Drive File Picker Modal */}
+      <GoogleDrivePickerModal
+        isOpen={isDrivePickerOpen}
+        onClose={() => setIsDrivePickerOpen(false)}
+        onSelectDriveFile={handleDirectDriveSelect}
       />
     </div>
   );

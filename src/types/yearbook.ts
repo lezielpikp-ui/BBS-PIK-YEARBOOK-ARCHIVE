@@ -29,6 +29,13 @@ export interface Yearbook {
   tags: string[];          // e.g. ["Seniors", "Athletics", "Arts"]
   featured?: boolean;
   samplePages?: YearbookSamplePage[];
+  // Google Drive Integration
+  sourceType?: 'google_drive' | 'uploaded' | 'curated';
+  driveFileId?: string;
+  driveWebViewLink?: string;
+  driveWebContentLink?: string;
+  driveThumbnailLink?: string;
+  driveOwnerEmail?: string;
 }
 
 export interface AdminUser {

@@ -43,7 +43,7 @@ export const YearbookViewerModal: React.FC<YearbookViewerModalProps> = ({
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(100);
-  const [activeTab, setActiveTab] = useState<'reader' | 'pdf'>('reader');
+  const [activeTab, setActiveTab] = useState<'reader' | 'pdf' | 'drive'>('reader');
   const [copiedLink, setCopiedLink] = useState(false);
   const [showSidebar, setShowSidebar] = useState(false);
 
@@ -136,6 +136,19 @@ export const YearbookViewerModal: React.FC<YearbookViewerModalProps> = ({
                 <span className="text-[10px] uppercase font-mono font-bold px-2 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-700/50 hidden md:inline-block">
                   Landscape Album
                 </span>
+                {(yearbook.sourceType === 'google_drive' || yearbook.driveFileId) && (
+                  <span className="text-[10px] uppercase font-mono font-bold px-2 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-700/50 flex items-center gap-1">
+                    <svg className="w-3 h-3 shrink-0" viewBox="0 0 87.3 78">
+                      <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
+                      <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44c-.8 1.4-1.2 2.95-1.2 4.5h27.5z" fill="#00ac47"/>
+                      <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/>
+                      <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/>
+                      <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
+                      <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
+                    </svg>
+                    <span>Google Drive</span>
+                  </span>
+                )}
               </h2>
               <p className="text-[11px] sm:text-xs text-cyan-200/80 truncate">
                 <span className="hidden sm:inline">BBS PIK • </span>
@@ -150,7 +163,7 @@ export const YearbookViewerModal: React.FC<YearbookViewerModalProps> = ({
 
           {/* Action buttons */}
           <div className="flex items-center gap-1.5 sm:gap-2">
-            {/* View Mode Toggle: Interactive Reader vs Embedded PDF */}
+            {/* View Mode Toggle: Interactive Reader vs Google Drive Preview vs Raw PDF */}
             <div className="hidden sm:flex bg-[#030d1d] p-0.5 rounded-lg border border-cyan-900 text-xs">
               <button
                 onClick={() => setActiveTab('reader')}
@@ -163,6 +176,29 @@ export const YearbookViewerModal: React.FC<YearbookViewerModalProps> = ({
                 <BookOpen className="w-3.5 h-3.5" />
                 <span>Album Reader</span>
               </button>
+
+              {yearbook.driveFileId && (
+                <button
+                  onClick={() => setActiveTab('drive')}
+                  className={`px-2.5 py-1 rounded-md font-bold transition-colors cursor-pointer flex items-center gap-1 ${
+                    activeTab === 'drive'
+                      ? 'bg-cyan-400 text-[#071630]'
+                      : 'text-cyan-200 hover:text-white'
+                  }`}
+                  title="Official Google Drive viewer"
+                >
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 87.3 78">
+                    <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
+                    <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44c-.8 1.4-1.2 2.95-1.2 4.5h27.5z" fill="#00ac47"/>
+                    <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/>
+                    <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/>
+                    <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
+                    <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
+                  </svg>
+                  <span>Drive View</span>
+                </button>
+              )}
+
               <button
                 onClick={() => setActiveTab('pdf')}
                 className={`px-2.5 py-1 rounded-md font-bold transition-colors cursor-pointer flex items-center gap-1 ${
@@ -267,6 +303,16 @@ export const YearbookViewerModal: React.FC<YearbookViewerModalProps> = ({
                 initialPage={currentPageIndex + 1}
                 onPageChange={(page) => setCurrentPageIndex(page - 1)}
               />
+            ) : activeTab === 'drive' && yearbook.driveFileId ? (
+              /* Official Google Drive Embedded PDF Viewer */
+              <div className="w-full h-full flex flex-col items-center justify-center p-2 sm:p-4 bg-[#030d1d]">
+                <iframe
+                  src={`https://drive.google.com/file/d/${yearbook.driveFileId}/preview`}
+                  title={`Google Drive: ${yearbook.title}`}
+                  className="w-full h-full rounded-xl border border-cyan-800 shadow-2xl bg-[#040e20]"
+                  allow="autoplay"
+                />
+              </div>
             ) : (
               /* Raw PDF / Embedded View Mode */
               <div className="w-full h-full flex flex-col items-center justify-center p-4">
@@ -295,6 +341,22 @@ export const YearbookViewerModal: React.FC<YearbookViewerModalProps> = ({
                         <BookOpen className="w-4 h-4 text-yellow-400" />
                         <span>Open in Page Reader</span>
                       </button>
+                      {yearbook.driveFileId && (
+                        <button
+                          onClick={() => setActiveTab('drive')}
+                          className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-cyan-950 hover:bg-cyan-900 text-cyan-200 font-bold rounded-xl border border-cyan-500/40 transition-all cursor-pointer"
+                        >
+                          <svg className="w-4 h-4" viewBox="0 0 87.3 78">
+                            <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
+                            <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44c-.8 1.4-1.2 2.95-1.2 4.5h27.5z" fill="#00ac47"/>
+                            <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/>
+                            <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/>
+                            <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
+                            <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
+                          </svg>
+                          <span>Open Google Drive Viewer</span>
+                        </button>
+                      )}
                       <button
                         onClick={() => downloadYearbookFile(yearbook)}
                         className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-yellow-400 hover:bg-yellow-300 text-[#071630] font-extrabold rounded-xl shadow-lg shadow-yellow-400/20 transition-all cursor-pointer"
@@ -359,9 +421,23 @@ export const YearbookViewerModal: React.FC<YearbookViewerModalProps> = ({
                 <div className="flex items-center justify-between text-cyan-200">
                   <span className="flex items-center gap-1.5">
                     <Tag className="w-3.5 h-3.5 text-yellow-400" />
-                    Format
+                    Source
                   </span>
-                  <span className="text-yellow-400 font-mono font-bold">Landscape Album</span>
+                  {yearbook.driveFileId ? (
+                    <span className="text-cyan-300 font-semibold flex items-center gap-1">
+                      <svg className="w-3.5 h-3.5" viewBox="0 0 87.3 78">
+                        <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
+                        <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44c-.8 1.4-1.2 2.95-1.2 4.5h27.5z" fill="#00ac47"/>
+                        <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/>
+                        <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/>
+                        <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
+                        <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
+                      </svg>
+                      Google Drive
+                    </span>
+                  ) : (
+                    <span className="text-yellow-400 font-mono font-bold">Landscape Album</span>
+                  )}
                 </div>
               </div>
 
