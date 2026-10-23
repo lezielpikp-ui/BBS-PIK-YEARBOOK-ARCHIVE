@@ -235,7 +235,8 @@ export const PdfPageViewer: React.FC<PdfPageViewerProps> = ({
             const { fetchDriveFileContent, getGoogleAccessToken } = await import('../services/googleDriveService');
             const token = await getGoogleAccessToken();
             if (token) {
-              const driveBuf = await fetchDriveFileContent(yearbook.driveFileId);
+              const cleanId = yearbook.driveFileId.replace(/^.*\/d\/([a-zA-Z0-9_-]+).*$/, '$1').replace(/^.*id=([a-zA-Z0-9_-]+).*$/, '$1');
+              const driveBuf = await fetchDriveFileContent(cleanId);
               if (driveBuf && driveBuf.byteLength > 0) {
                 pdfData = driveBuf;
                 // Cache for smooth subsequent viewings

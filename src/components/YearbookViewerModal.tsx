@@ -21,11 +21,14 @@ import {
   Check,
   Home,
   Edit3,
+  ExternalLink,
 } from 'lucide-react';
 import { Yearbook, AdminUser } from '../types/yearbook';
 import { downloadYearbookFile } from '../utils/pdfHelper';
 import { BBSLogo } from './BBSLogo';
 import { PdfPageViewer } from './PdfPageViewer';
+import { extractGoogleDriveFileId } from '../utils/googleDriveUrl';
+import { getPdfFile } from '../services/pdfStore';
 
 interface YearbookViewerModalProps {
   yearbook: Yearbook | null;
@@ -46,6 +49,36 @@ export const YearbookViewerModal: React.FC<YearbookViewerModalProps> = ({
   const [activeTab, setActiveTab] = useState<'reader' | 'pdf' | 'drive'>('reader');
   const [copiedLink, setCopiedLink] = useState(false);
   const [showSidebar, setShowSidebar] = useState(false);
+  const [hasLocalPdf, setHasLocalPdf] = useState(false);
+  const [embedMode, setEmbedMode] = useState<'preview' | 'docs'>('preview');
+
+  const cleanDriveId = yearbook
+    ? extractGoogleDriveFileId(yearbook.driveFileId || yearbook.driveWebViewLink || '') || yearbook.driveFileId || ''
+    : '';
+  const isGoogleDrive = Boolean(cleanDriveId || yearbook?.sourceType === 'google_drive');
+
+  // Check if local PDF is stored in IndexedDB or fileUrl
+  useEffect(() => {
+    if (!yearbook) return;
+    let isCurrent = true;
+
+    getPdfFile(yearbook.id).then((buf) => {
+      if (!isCurrent) return;
+      const exists = !!(buf && buf.byteLength > 0) || Boolean(yearbook.fileUrl && yearbook.fileUrl.startsWith('data:application/pdf'));
+      setHasLocalPdf(exists);
+
+      // CRITICAL FIX: If yearbook is from Google Drive and not cached locally, immediately show Google Drive view!
+      if (isGoogleDrive && !exists) {
+        setActiveTab('drive');
+      } else {
+        setActiveTab('reader');
+      }
+    });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [yearbook?.id, isGoogleDrive]);
 
   // Keyboard navigation for closing modal
   useEffect(() => {
@@ -178,7 +211,7 @@ export const YearbookViewerModal: React.FC<YearbookViewerModalProps> = ({
                 <span className="sm:hidden">Reader</span>
               </button>
 
-              {yearbook.driveFileId && (
+              {cleanDriveId && (
                 <button
                   onClick={() => setActiveTab('drive')}
                   className={`px-2 sm:px-2.5 py-1 rounded-md font-bold transition-colors cursor-pointer flex items-center gap-1 ${
@@ -215,6 +248,21 @@ export const YearbookViewerModal: React.FC<YearbookViewerModalProps> = ({
               </button>
             </div>
 
+            {/* Prominent Direct Google Drive Button */}
+            {cleanDriveId && (
+              <a
+                href={`https://drive.google.com/file/d/${cleanDriveId}/view?usp=sharing`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-yellow-400 hover:bg-yellow-300 text-[#071630] font-extrabold text-xs sm:text-sm rounded-lg shadow-sm transition-all"
+                title="Open full yearbook file directly in Google Drive"
+              >
+                <ExternalLink className="w-3.5 h-3.5 stroke-[2.5]" />
+                <span className="hidden md:inline">Open in Drive</span>
+                <span className="md:hidden">Drive ↗</span>
+              </a>
+            )}
+
             {/* Toggle Album Details Sidebar */}
             <button
               onClick={() => setShowSidebar(!showSidebar)}
@@ -232,12 +280,11 @@ export const YearbookViewerModal: React.FC<YearbookViewerModalProps> = ({
             {/* Download Button */}
             <button
               onClick={() => downloadYearbookFile(yearbook)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-yellow-400 hover:bg-yellow-300 text-[#071630] font-extrabold text-xs sm:text-sm rounded-lg shadow-sm shadow-yellow-400/20 transition-all cursor-pointer"
-              title="Download original yearbook PDF file"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#0b244d] hover:bg-cyan-700 text-white font-bold text-xs sm:text-sm rounded-lg border border-cyan-500/40 transition-all cursor-pointer"
+              title="Download yearbook file"
             >
-              <Download className="w-4 h-4 stroke-[2.4]" />
-              <span className="hidden xs:inline">PDF</span>
-              <span className="text-[10px] opacity-80 font-normal">({yearbook.fileSize})</span>
+              <Download className="w-4 h-4 text-yellow-400 stroke-[2.4]" />
+              <span className="hidden xs:inline">Download</span>
             </button>
 
             {/* Share Link */}
@@ -301,20 +348,113 @@ export const YearbookViewerModal: React.FC<YearbookViewerModalProps> = ({
           {/* Main Viewer Canvas: Renders all pages of uploaded PDF or generated document */}
           <div className="flex-1 bg-[#030d1d] flex flex-col overflow-hidden relative">
             {activeTab === 'reader' ? (
-              <PdfPageViewer
-                yearbook={yearbook}
-                initialPage={currentPageIndex + 1}
-                onPageChange={(page) => setCurrentPageIndex(page - 1)}
-              />
-            ) : activeTab === 'drive' && yearbook.driveFileId ? (
-              /* Official Google Drive Embedded PDF Viewer */
-              <div className="w-full h-full flex flex-col items-center justify-center p-2 sm:p-4 bg-[#030d1d]">
-                <iframe
-                  src={`https://drive.google.com/file/d/${yearbook.driveFileId}/preview`}
-                  title={`Google Drive: ${yearbook.title}`}
-                  className="w-full h-full rounded-xl border border-cyan-800 shadow-2xl bg-[#040e20]"
-                  allow="autoplay"
-                />
+              <div className="w-full h-full flex flex-col relative overflow-hidden">
+                {isGoogleDrive && !hasLocalPdf && (
+                  <div className="px-4 py-2 bg-cyan-950/90 border-b border-cyan-800 flex items-center justify-between text-xs text-cyan-200 shrink-0">
+                    <span className="truncate">
+                      This volume is hosted on Google Drive. For the full document experience, switch to Drive View.
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('drive')}
+                      className="px-2.5 py-1 bg-yellow-400 hover:bg-yellow-300 text-[#071630] font-bold rounded-lg text-xs shrink-0 cursor-pointer"
+                    >
+                      Switch to Drive View
+                    </button>
+                  </div>
+                )}
+                <div className="flex-1 overflow-hidden">
+                  <PdfPageViewer
+                    yearbook={yearbook}
+                    initialPage={currentPageIndex + 1}
+                    onPageChange={(page) => setCurrentPageIndex(page - 1)}
+                  />
+                </div>
+              </div>
+            ) : activeTab === 'drive' && cleanDriveId ? (
+              /* High-Reliability Google Drive Document Viewer with Multiple Embed Modes & Direct Actions */
+              <div className="w-full h-full flex flex-col bg-[#030d1d] overflow-hidden">
+                {/* Drive Subheader Bar */}
+                <div className="px-4 py-2 bg-[#040e20] border-b border-cyan-900 flex items-center justify-between gap-3 shrink-0">
+                  <div className="flex items-center gap-2 overflow-hidden">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0"></span>
+                    <span className="text-xs font-bold text-white truncate">
+                      Google Drive Source: {yearbook.fileName || yearbook.title}
+                    </span>
+                    <span className="text-[10px] text-cyan-300/80 font-mono hidden sm:inline">
+                      ({yearbook.fileSize || 'PDF Document'})
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    {/* Embed Switcher */}
+                    <div className="flex items-center bg-[#071630] rounded-lg p-0.5 border border-cyan-800 text-[11px]">
+                      <button
+                        type="button"
+                        onClick={() => setEmbedMode('preview')}
+                        className={`px-2 py-0.5 rounded font-medium cursor-pointer transition-colors ${
+                          embedMode === 'preview' ? 'bg-cyan-500/20 text-yellow-300 font-bold' : 'text-cyan-300/70 hover:text-white'
+                        }`}
+                        title="Use official Google Drive preview embed"
+                      >
+                        Drive Mode
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEmbedMode('docs')}
+                        className={`px-2 py-0.5 rounded font-medium cursor-pointer transition-colors ${
+                          embedMode === 'docs' ? 'bg-cyan-500/20 text-yellow-300 font-bold' : 'text-cyan-300/70 hover:text-white'
+                        }`}
+                        title="Use alternative Google Docs viewer embed"
+                      >
+                        Docs Mode
+                      </button>
+                    </div>
+
+                    {/* Direct link in Drive */}
+                    <a
+                      href={`https://drive.google.com/file/d/${cleanDriveId}/view?usp=sharing`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 px-3 py-1 bg-yellow-400 hover:bg-yellow-300 text-[#071630] font-extrabold text-xs rounded-lg shadow-sm transition-all cursor-pointer"
+                      title="Open file directly in Google Drive"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>Open in Drive</span>
+                    </a>
+                  </div>
+                </div>
+
+                {/* Iframe View */}
+                <div className="flex-1 relative w-full h-full bg-[#020b18]">
+                  <iframe
+                    key={embedMode}
+                    src={
+                      embedMode === 'preview'
+                        ? `https://drive.google.com/file/d/${cleanDriveId}/preview`
+                        : `https://docs.google.com/viewer?srcid=${cleanDriveId}&pid=explorer&efh=false&a=v&chrome=false&embedded=true`
+                    }
+                    title={`Google Drive: ${yearbook.title}`}
+                    className="w-full h-full border-0"
+                    allow="autoplay; fullscreen; encrypted-media"
+                  />
+                </div>
+
+                {/* Info Helper Footer */}
+                <div className="px-4 py-1.5 bg-[#040e20] border-t border-cyan-900/70 flex items-center justify-between text-[11px] text-cyan-200/80">
+                  <span>
+                    Bina Bangsa School Pantai Indah Kapuk • Digital Yearbook Archive
+                  </span>
+                  <a
+                    href={`https://drive.google.com/file/d/${cleanDriveId}/view?usp=sharing`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-yellow-300 hover:text-yellow-200 underline font-semibold flex items-center gap-1"
+                  >
+                    <span>Click here if preview is restricted</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
               </div>
             ) : (
               /* Raw PDF / Embedded View Mode */

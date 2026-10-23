@@ -40,32 +40,44 @@ export async function downloadYearbookFile(yearbook: Yearbook): Promise<void> {
     return;
   }
 
-  // If sourced from Google Drive, download using Google Drive API or content link
-  if (yearbook.driveFileId) {
+  // If sourced from Google Drive, download using Google Drive API or direct content link
+  const cleanDriveId = yearbook.driveFileId
+    ? yearbook.driveFileId.replace(/^.*\/d\/([a-zA-Z0-9_-]+).*$/, '$1').replace(/^.*id=([a-zA-Z0-9_-]+).*$/, '$1')
+    : '';
+
+  if (cleanDriveId) {
     try {
       const { fetchDriveFileContent, getGoogleAccessToken } = await import('../services/googleDriveService');
       const token = await getGoogleAccessToken();
       if (token) {
-        const buf = await fetchDriveFileContent(yearbook.driveFileId);
-        const blob = new Blob([buf], { type: 'application/pdf' });
-        const blobUrl = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = blobUrl;
-        link.download = yearbook.fileName || `BBS_PIK_Yearbook_${yearbook.year}.pdf`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
-        return;
+        const buf = await fetchDriveFileContent(cleanDriveId);
+        if (buf && buf.byteLength > 0) {
+          const blob = new Blob([buf], { type: 'application/pdf' });
+          const blobUrl = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = blobUrl;
+          link.download = yearbook.fileName || `BBS_PIK_Yearbook_${yearbook.year}.pdf`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+          return;
+        }
       }
     } catch (e) {
       console.warn('Could not fetch directly from Drive API:', e);
     }
 
-    if (yearbook.driveWebContentLink) {
-      window.open(yearbook.driveWebContentLink, '_blank');
-      return;
-    }
+    // Direct Google Drive download/view link (never mock or dummy PDF)
+    const downloadUrl = yearbook.driveWebContentLink || `https://drive.google.com/uc?export=download&id=${cleanDriveId}`;
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    return;
   }
 
   // Otherwise, construct a real valid PDF document Blob client-side

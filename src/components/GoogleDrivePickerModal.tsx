@@ -319,52 +319,23 @@ export const GoogleDrivePickerModal: React.FC<GoogleDrivePickerModalProps> = ({
 
         {/* Content Body */}
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
-          {/* Unauthorized Domain Error Guidance Card */}
+          {/* Compact Helpful Notice if domain sign-in is pending */}
           {unauthorizedDomainError && (
-            <div className="p-4 rounded-2xl bg-amber-950/70 border border-amber-500/60 text-amber-200 text-xs space-y-3">
-              <div className="flex items-start gap-2.5">
-                <ShieldAlert className="w-5 h-5 text-yellow-400 shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <h4 className="font-bold text-white text-sm">
-                    Domain Authorization Notice (Firebase Authentication)
-                  </h4>
-                  <p className="text-cyan-100/90 text-xs mt-1 leading-relaxed">
-                    Firebase requires new web domains to be allowlisted in the Firebase Console before Google popup sign-in can proceed.
-                  </p>
-                </div>
+            <div className="p-3 rounded-xl bg-amber-950/60 border border-amber-500/40 text-amber-200 text-xs flex items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2">
+                <ShieldAlert className="w-4 h-4 text-yellow-400 shrink-0" />
+                <span>
+                  Direct Link mode is ready below. (For Google account popup login, add domain to Firebase Authorized Domains).
+                </span>
               </div>
-
-              {/* Step-by-step resolution box */}
-              <div className="p-3 bg-[#030d1d] rounded-xl border border-amber-500/30 space-y-2">
-                <div className="text-[11px] font-bold text-yellow-300 uppercase tracking-wide">
-                  To Authorize This Domain in 30 Seconds:
-                </div>
-                <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-[#071630] border border-cyan-800 text-[11px] font-mono text-cyan-200">
-                  <span className="truncate">{currentHost}</span>
-                  <button
-                    type="button"
-                    onClick={copyDomainToClipboard}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-yellow-400 hover:bg-yellow-300 text-[#071630] font-bold text-[10px] cursor-pointer shrink-0"
-                  >
-                    {copiedDomain ? <CheckCheck className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                    <span>{copiedDomain ? 'Copied!' : 'Copy Domain'}</span>
-                  </button>
-                </div>
-                <div className="text-[11px] text-cyan-200/90 leading-relaxed">
-                  1. Click below to open <strong>Firebase Console &gt; Authentication &gt; Settings &gt; Authorized domains</strong>.<br />
-                  2. Click <strong>Add domain</strong> and paste the domain above.<br />
-                  3. In the meantime, use the <strong>Google Drive Link / File ID</strong> tab below to import your yearbook instantly!
-                </div>
-                <a
-                  href={firebaseSettingsUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-yellow-400 hover:bg-yellow-300 text-[#071630] font-bold text-xs rounded-lg shadow-sm transition-all"
-                >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  <span>Open Firebase Authorized Domains Settings ↗</span>
-                </a>
-              </div>
+              <button
+                type="button"
+                onClick={copyDomainToClipboard}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-yellow-400 hover:bg-yellow-300 text-[#071630] font-bold text-[10px] shrink-0 cursor-pointer"
+              >
+                {copiedDomain ? <CheckCheck className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                <span>{copiedDomain ? 'Copied' : 'Copy'}</span>
+              </button>
             </div>
           )}
 

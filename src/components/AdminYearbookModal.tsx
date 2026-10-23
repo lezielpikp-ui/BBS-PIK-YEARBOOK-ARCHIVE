@@ -30,6 +30,11 @@ import { getActiveAdminSession } from '../services/authService';
 import { savePdfFile } from '../services/pdfStore';
 import { GoogleDrivePickerModal } from './GoogleDrivePickerModal';
 import { DriveFileItem } from '../services/googleDriveService';
+import {
+  extractGoogleDriveFileId,
+  getGoogleDriveViewUrl,
+  getGoogleDriveDownloadUrl,
+} from '../utils/googleDriveUrl';
 
 interface AdminYearbookModalProps {
   isOpen: boolean;
@@ -85,6 +90,7 @@ export const AdminYearbookModal: React.FC<AdminYearbookModalProps> = ({
 
   // Google Drive Source State
   const [driveFileId, setDriveFileId] = useState('');
+  const [driveLinkInput, setDriveLinkInput] = useState('');
   const [driveWebViewLink, setDriveWebViewLink] = useState('');
   const [driveWebContentLink, setDriveWebContentLink] = useState('');
   const [driveThumbnailLink, setDriveThumbnailLink] = useState('');
@@ -120,6 +126,7 @@ export const AdminYearbookModal: React.FC<AdminYearbookModalProps> = ({
       setIsFeatured(!!yearbookToEdit.featured);
       setCurrentRecordId(yearbookToEdit.id);
       setDriveFileId(yearbookToEdit.driveFileId || '');
+      setDriveLinkInput(yearbookToEdit.driveWebViewLink || yearbookToEdit.driveFileId || '');
       setDriveWebViewLink(yearbookToEdit.driveWebViewLink || '');
       setDriveWebContentLink(yearbookToEdit.driveWebContentLink || '');
       setDriveThumbnailLink(yearbookToEdit.driveThumbnailLink || '');
@@ -146,6 +153,7 @@ export const AdminYearbookModal: React.FC<AdminYearbookModalProps> = ({
       setIsFeatured(false);
       setCurrentRecordId(`yb-bbs-${Date.now()}`);
       setDriveFileId('');
+      setDriveLinkInput('');
       setDriveWebViewLink('');
       setDriveWebContentLink('');
       setDriveThumbnailLink('');
@@ -154,6 +162,26 @@ export const AdminYearbookModal: React.FC<AdminYearbookModalProps> = ({
     setError(null);
     setSuccessNotice(null);
   }, [yearbookToEdit, isOpen]);
+
+  // Handle direct Google Drive link input
+  const handleDriveLinkChange = (inputVal: string) => {
+    setDriveLinkInput(inputVal);
+    const extractedId = extractGoogleDriveFileId(inputVal);
+    if (extractedId) {
+      setDriveFileId(extractedId);
+      setDriveWebViewLink(getGoogleDriveViewUrl(extractedId));
+      setDriveWebContentLink(getGoogleDriveDownloadUrl(extractedId));
+      setSourceType('google_drive');
+      if (!fileName) {
+        setFileName(`BBS_PIK_Yearbook_Drive_${extractedId.slice(0, 8)}.pdf`);
+      }
+      setSuccessNotice(`Google Drive file linked (ID: ${extractedId}). File will be viewable in the app.`);
+    } else if (!inputVal.trim()) {
+      setDriveFileId('');
+      setDriveWebViewLink('');
+      setDriveWebContentLink('');
+    }
+  };
 
   // CRITICAL REQUIREMENT: "the editable version should only be viewed when in admin log in mode."
   if (!isOpen || !activeAdmin) return null;
@@ -649,65 +677,75 @@ export const AdminYearbookModal: React.FC<AdminYearbookModalProps> = ({
                     </span>
                   </div>
 
-                  {/* Primary Option: Google Drive Selection Card */}
-                  <div className="p-3.5 rounded-xl bg-[#030d1d] border border-cyan-800/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-inner">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-cyan-950/80 border border-cyan-500/40 flex items-center justify-center shrink-0">
-                        <svg className="w-6 h-6" viewBox="0 0 87.3 78" xmlns="http://www.w3.org/2000/svg">
-                          <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
-                          <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44c-.8 1.4-1.2 2.95-1.2 4.5h27.5z" fill="#00ac47"/>
-                          <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/>
-                          <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/>
-                          <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
-                          <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
-                        </svg>
-                      </div>
-                      <div>
-                        <div className="text-xs font-bold text-white flex items-center gap-2">
-                          <span>Google Drive Yearbook Archive</span>
-                          <span className="px-1.5 py-0.2 rounded text-[10px] bg-yellow-400 text-[#071630] font-extrabold">
-                            Preferred Source
+                  {/* Primary Option: Google Drive Selection Card with Direct Link Input */}
+                  <div className="p-4 rounded-xl bg-[#030d1d] border border-cyan-800/80 space-y-3 shadow-inner">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-lg bg-cyan-950/80 border border-cyan-500/40 flex items-center justify-center shrink-0">
+                          <svg className="w-5 h-5" viewBox="0 0 87.3 78" xmlns="http://www.w3.org/2000/svg">
+                            <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
+                            <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44c-.8 1.4-1.2 2.95-1.2 4.5h27.5z" fill="#00ac47"/>
+                            <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/>
+                            <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/>
+                            <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
+                            <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
+                          </svg>
+                        </div>
+                        <div>
+                          <div className="text-xs font-bold text-white flex items-center gap-2">
+                            <span>Google Drive Source</span>
+                            <span className="px-1.5 py-0.2 rounded text-[10px] bg-yellow-400 text-[#071630] font-extrabold">
+                              Cloud Source
+                            </span>
+                          </div>
+                          <span className="text-[11px] text-cyan-200/80">
+                            Paste any shared Google Drive yearbook link or file ID.
                           </span>
                         </div>
-                        <p className="text-[11px] text-cyan-200/80">
-                          {driveFileId
-                            ? `Connected: ${fileName} (${fileSize})`
-                            : 'Select and synchronize directly from your school Google Drive.'}
-                        </p>
                       </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setIsDrivePickerOpen(true)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#0b244d] hover:bg-cyan-700 text-yellow-300 hover:text-white font-bold text-xs border border-cyan-700/60 transition-colors cursor-pointer self-start sm:self-auto shrink-0"
+                      >
+                        <HardDrive className="w-3.5 h-3.5" />
+                        <span>Drive Browser</span>
+                      </button>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => setIsDrivePickerOpen(true)}
-                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl bg-yellow-400 hover:bg-yellow-300 text-[#071630] font-extrabold text-xs shadow-md transition-all cursor-pointer shrink-0"
-                    >
-                      <HardDrive className="w-3.5 h-3.5" />
-                      <span>{driveFileId ? 'Change Google Drive File' : 'Select from Google Drive'}</span>
-                    </button>
-                  </div>
+                    <div>
+                      <input
+                        type="text"
+                        value={driveLinkInput}
+                        onChange={(e) => handleDriveLinkChange(e.target.value)}
+                        placeholder="https://drive.google.com/file/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs.../view"
+                        className="w-full px-3.5 py-2.5 bg-[#040e20] border border-cyan-800 rounded-xl text-xs text-white placeholder-cyan-500/50 focus:outline-none focus:border-cyan-400 font-mono"
+                      />
+                      <span className="text-[10px] text-cyan-400/80 mt-1 block">
+                        Example: Copy link from Google Drive (Share &gt; Copy link) and paste here.
+                      </span>
+                    </div>
 
-                  {/* Active Google Drive File Notification */}
-                  {driveFileId && (
-                    <div className="p-3 rounded-xl bg-cyan-950/60 border border-cyan-500/50 flex items-center justify-between gap-2 text-xs">
-                      <div className="flex items-center gap-2 truncate">
-                        <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                        <span className="text-cyan-200 truncate">
-                          Synced with Google Drive file: <strong className="text-white">{fileName}</strong>
-                        </span>
-                      </div>
-                      {driveWebViewLink && (
+                    {driveFileId && (
+                      <div className="p-3 rounded-lg bg-emerald-950/60 border border-emerald-500/40 text-xs text-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 truncate">
+                          <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                          <span className="truncate">
+                            Google Drive Connected (File ID: <strong className="font-mono text-white">{driveFileId}</strong>)
+                          </span>
+                        </div>
                         <a
-                          href={driveWebViewLink}
+                          href={`https://drive.google.com/file/d/${driveFileId}/view?usp=sharing`}
                           target="_blank"
                           rel="noreferrer"
-                          className="text-[11px] text-yellow-300 hover:text-yellow-200 underline shrink-0 font-medium"
+                          className="text-[11px] text-yellow-300 hover:text-yellow-200 underline font-bold shrink-0 self-end sm:self-auto"
                         >
-                          View in Drive ↗
+                          Verify in Google Drive ↗
                         </a>
-                      )}
-                    </div>
-                  )}
+                      </div>
+                    )}
+                  </div>
 
                   {/* Secondary Option: Or Upload Local PDF */}
                   <div className="relative">
